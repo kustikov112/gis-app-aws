@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+cdk.out/
+*.js.map
+*.d.ts
+
+# CDK context (auto-generated on deploy, contains account IDs)
+cdk.context.json
+
+# Local environment variables — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+
+# Python (not used in this repo)
+.venv/
+__pycache__/
+*.pyc

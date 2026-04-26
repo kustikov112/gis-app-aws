@@ -1,0 +1,29 @@
+{
+  "module": 4,
+  "ui": {
+    "showMap": true,
+    "enableCreatePoint": false,
+    "enableUploadPhoto": false,
+    "enableCsvImport": false,
+    "enableAuthButtons": false,
+    "showAiLabels": false
+  },
+  "api": {
+    "enablePointsApi": true,
+    "pointsSource": "dynamodb"
+  },
+  "security": {
+    "enableBasicAuthForImport": false,
+    "enableCognito": false,
+    "requireAuthForCreatePoint": false
+  },
+  "async": {
+    "enableSqsPipeline": false,
+    "enableSnsNotifications": false
+  },
+  "ai": {
+    "enableRekognitionLabels": false,
+    "enableModeration": false,
+    "enableTextDetection": false
+  }
+}
