@@ -4,6 +4,8 @@ export type Point = {
   description: string;
   latitude: number;
   longitude: number;
+  createdAt?: string;
+  tags?: string[];
   photoUrl?: string;
   aiLabels?: Array<{ name: string; confidence: number }>;
 };

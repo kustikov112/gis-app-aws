@@ -199,6 +199,8 @@ export const MapPointsPage: React.FC<Props> = ({
           {points.map((point) => (
             <li key={point.id}>
               <strong>{point.title}</strong> ({point.latitude}, {point.longitude})
+              {point.createdAt ? <div>Created: {point.createdAt}</div> : null}
+              {point.tags?.length ? <div>Tags: {point.tags.join(", ")}</div> : null}
               {point.photoUrl ? (
                 <div>
                   <a href={point.photoUrl} target="_blank" rel="noreferrer">
