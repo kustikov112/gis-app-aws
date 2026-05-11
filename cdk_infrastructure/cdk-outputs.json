@@ -1,6 +1,9 @@
 {
-  "MapPointsModule02HostingStack": {
-    "CloudFrontUrl": "https://d1m2z6q4f6o1cr.cloudfront.net",
-    "BucketName": "mappointsmodule02hostings-mappointssitebucketa2a59-xn2czasc20rc"
+  "MapPointsModule03PointServiceStack": {
+    "PointsTableName": "MapPointsModule03PointServiceStack-PointsTableA44D29EC-JV1AT9BJID7P",
+    "ImportBucketName": "mappointsmodule03pointservice-importbucketbaf3a8e9-kt1evc5y8lea",
+    "PointsApiEndpointC1814B0A": "https://swqlq5bew4.execute-api.eu-central-1.amazonaws.com/prod/",
+    "ImportApiBaseUrl": "https://swqlq5bew4.execute-api.eu-central-1.amazonaws.com/prod",
+    "PointsApiBaseUrl": "https://swqlq5bew4.execute-api.eu-central-1.amazonaws.com/prod"
   }
 }

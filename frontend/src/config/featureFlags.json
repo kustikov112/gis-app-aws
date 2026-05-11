@@ -1,10 +1,10 @@
 {
-  "module": 4,
+  "module": 5,
   "ui": {
     "showMap": true,
     "enableCreatePoint": true,
-    "enableUploadPhoto": false,
-    "enableCsvImport": false,
+    "enableUploadPhoto": true,
+    "enableCsvImport": true,
     "enableAuthButtons": false,
     "showAiLabels": false
   },

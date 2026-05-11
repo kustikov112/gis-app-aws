@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 import { jsonResponse } from "./http.js";
-import { listPoints } from "./pointStore.js";
+import { listPoints, withSignedPhotoUrls } from "./pointStore.js";
 
 export const handler = async (
   event: APIGatewayProxyEventV2,
@@ -9,7 +9,8 @@ export const handler = async (
     console.log("getPointsList request", { requestId: event.requestContext.requestId });
 
     const points = await listPoints();
-    return jsonResponse(200, points);
+    const pointsWithSignedPhotoUrls = await withSignedPhotoUrls(points);
+    return jsonResponse(200, pointsWithSignedPhotoUrls);
   } catch {
     return jsonResponse(500, { error: "Internal server error" });
   }
