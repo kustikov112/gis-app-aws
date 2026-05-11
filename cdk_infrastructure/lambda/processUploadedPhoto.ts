@@ -1,0 +1,1 @@
+export { handler } from "../../backend_node/import_service/handlers/processUploadedPhoto";
