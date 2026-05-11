@@ -1,39 +1,28 @@
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
-import { MOCK_POINTS } from "./mockPoints.js";
+import { jsonResponse } from "./http.js";
+import { findPointById } from "./pointStore.js";
 
 export const handler = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyStructuredResultV2> => {
   const pointId = event.pathParameters?.pointId;
+  console.log("getPointById request", {
+    pointId,
+    requestId: event.requestContext.requestId,
+  });
+
   if (!pointId) {
-    return {
-      statusCode: 400,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({ error: "pointId is required" }),
-    };
+    return jsonResponse(400, { error: "pointId is required" });
   }
 
-  const point = MOCK_POINTS.find((candidate) => candidate.id === pointId);
-  if (!point) {
-    return {
-      statusCode: 404,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: JSON.stringify({ error: `Point with id '${pointId}' not found` }),
-    };
-  }
+  try {
+    const point = await findPointById(pointId);
+    if (!point) {
+      return jsonResponse(404, { error: `Point with id '${pointId}' not found` });
+    }
 
-  return {
-    statusCode: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-    body: JSON.stringify(point),
-  };
+    return jsonResponse(200, point);
+  } catch {
+    return jsonResponse(500, { error: "Internal server error" });
+  }
 };
