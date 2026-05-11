@@ -26,6 +26,15 @@ export class Module03PointServiceStack extends cdk.Stack {
       enforceSSL: true,
       autoDeleteObjects: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+          allowedOrigins: ["*"],
+          allowedHeaders: ["*"],
+          exposedHeaders: ["ETag"],
+          maxAge: 3600,
+        },
+      ],
     });
 
     const getPointsListLambda = new nodejs.NodejsFunction(this, "GetPointsListLambda", {
