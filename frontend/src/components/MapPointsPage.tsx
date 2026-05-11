@@ -92,6 +92,19 @@ export const MapPointsPage: React.FC<Props> = ({
   const canUploadPhoto = flags.ui.enableUploadPhoto && (!flags.security.enableCognito || isAuthenticated);
   const uploadInputRef = React.useRef<HTMLInputElement | null>(null);
   const csvInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [selectedUploadPointId, setSelectedUploadPointId] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (!points.length) {
+      setSelectedUploadPointId("");
+      return;
+    }
+
+    const selectedPointStillExists = points.some((point) => point.id === selectedUploadPointId);
+    if (!selectedPointStillExists) {
+      setSelectedUploadPointId(points[0].id);
+    }
+  }, [points, selectedUploadPointId]);
 
   const handleUploadClick = () => {
     if (!points.length) {
@@ -108,8 +121,9 @@ export const MapPointsPage: React.FC<Props> = ({
       return;
     }
 
-    const pointId = points[0]?.id;
+    const pointId = selectedUploadPointId;
     if (!pointId) {
+      alert("Please select a point for photo upload.");
       return;
     }
 
@@ -165,6 +179,20 @@ export const MapPointsPage: React.FC<Props> = ({
         <div />
         {canUploadPhoto ? (
           <>
+            <label style={{ marginRight: 8 }}>
+              Point:
+              <select
+                style={{ marginLeft: 6 }}
+                value={selectedUploadPointId}
+                onChange={(event) => setSelectedUploadPointId(event.target.value)}
+              >
+                {points.map((point) => (
+                  <option key={point.id} value={point.id}>
+                    {point.title}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button onClick={handleUploadClick}>Upload Photo</button>
             <input
               ref={uploadInputRef}
@@ -206,6 +234,13 @@ export const MapPointsPage: React.FC<Props> = ({
                   <a href={point.photoUrl} target="_blank" rel="noreferrer">
                     Open photo
                   </a>
+                  <div style={{ marginTop: 8 }}>
+                    <img
+                      src={point.photoUrl}
+                      alt={`${point.title} preview`}
+                      style={{ width: 180, height: 120, objectFit: "cover", borderRadius: 8, border: "1px solid #ddd" }}
+                    />
+                  </div>
                 </div>
               ) : null}
               {flags.ui.showAiLabels && point.aiLabels?.length ? (
