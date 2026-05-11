@@ -44,7 +44,7 @@ const mockPoints: Point[] = [
 
 export const App: React.FC = () => {
   const [flags] = useState<FeatureFlags>(featureFlags as FeatureFlags);
-  const [points, setPoints] = useState<Point[]>(mockPoints);
+  const [points, setPoints] = useState<Point[]>(flags.api.pointsSource === "mock" ? mockPoints : []);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const api = createApiClient({
@@ -81,7 +81,7 @@ export const App: React.FC = () => {
       const items = await api.getPoints();
       setPoints(items);
     } catch {
-      setPoints(mockPoints);
+      setPoints(flags.api.pointsSource === "mock" ? mockPoints : []);
     }
   };
 

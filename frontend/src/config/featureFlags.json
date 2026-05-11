@@ -1,8 +1,8 @@
 {
-  "module": 3,
+  "module": 4,
   "ui": {
     "showMap": true,
-    "enableCreatePoint": false,
+    "enableCreatePoint": true,
     "enableUploadPhoto": false,
     "enableCsvImport": false,
     "enableAuthButtons": false,
@@ -10,7 +10,7 @@
   },
   "api": {
     "enablePointsApi": true,
-    "pointsSource": "mock"
+    "pointsSource": "dynamodb"
   },
   "security": {
     "enableBasicAuthForImport": false,
