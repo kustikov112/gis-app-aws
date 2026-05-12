@@ -5,6 +5,7 @@ import {
   GetObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import csvParser from "csv-parser";
 import { Readable } from "node:stream";
 
@@ -16,6 +17,7 @@ type ParsedPointRecord = {
 };
 
 const s3Client = new S3Client({});
+const sqsClient = new SQSClient({});
 
 const decodeS3Key = (key: string): string => decodeURIComponent(key.replace(/\+/g, " "));
 const encodeS3Key = (key: string): string => key.split("/").map(encodeURIComponent).join("/");
@@ -43,6 +45,15 @@ const toParsedPointRecord = (record: Record<string, unknown>): ParsedPointRecord
   }
 
   return { title, description, latitude, longitude };
+};
+
+const getPointsImportQueueUrl = (): string => {
+  const queueUrl = process.env.POINTS_IMPORT_QUEUE_URL;
+  if (!queueUrl) {
+    throw new Error("POINTS_IMPORT_QUEUE_URL is not set");
+  }
+
+  return queueUrl;
 };
 
 const parseCsvFromObject = async (bucketName: string, key: string): Promise<ParsedPointRecord[]> => {
@@ -81,6 +92,8 @@ const parseCsvFromObject = async (bucketName: string, key: string): Promise<Pars
 };
 
 export const handler = async (event: S3Event): Promise<void> => {
+  const pointsImportQueueUrl = getPointsImportQueueUrl();
+
   for (const record of event.Records) {
     const bucketName = record.s3.bucket.name;
     const sourceKey = decodeS3Key(record.s3.object.key);
@@ -90,7 +103,22 @@ export const handler = async (event: S3Event): Promise<void> => {
       continue;
     }
 
-    await parseCsvFromObject(bucketName, sourceKey);
+    const rows = await parseCsvFromObject(bucketName, sourceKey);
+
+    for (const row of rows) {
+      await sqsClient.send(
+        new SendMessageCommand({
+          QueueUrl: pointsImportQueueUrl,
+          MessageBody: JSON.stringify(row),
+        }),
+      );
+    }
+
+    console.log("Sent parsed rows to points import queue", {
+      bucketName,
+      sourceKey,
+      count: rows.length,
+    });
 
     const destinationKey = sourceKey.replace(/^uploaded\//, "parsed/");
     await s3Client.send(

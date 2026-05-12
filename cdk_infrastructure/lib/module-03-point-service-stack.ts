@@ -3,8 +3,12 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as snsSubscriptions from "aws-cdk-lib/aws-sns-subscriptions";
+import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 import * as path from "node:path";
 
@@ -36,6 +40,21 @@ export class Module03PointServiceStack extends cdk.Stack {
         },
       ],
     });
+
+    const pointsImportQueue = new sqs.Queue(this, "PointsImportQueue", {
+      queueName: "pointsImportQueue",
+      visibilityTimeout: cdk.Duration.seconds(60),
+      retentionPeriod: cdk.Duration.days(4),
+    });
+
+    const pointsImportTopic = new sns.Topic(this, "PointsImportTopic", {
+      topicName: "pointsImportTopic",
+    });
+
+    const notificationEmail = this.node.tryGetContext("notificationEmail") as string | undefined;
+    if (notificationEmail) {
+      pointsImportTopic.addSubscription(new snsSubscriptions.EmailSubscription(notificationEmail));
+    }
 
     const getPointsListLambda = new nodejs.NodejsFunction(this, "GetPointsListLambda", {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -119,9 +138,26 @@ export class Module03PointServiceStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: "handler",
       entry: path.join(__dirname, "../lambda/importFileParser.ts"),
+      environment: {
+        POINTS_IMPORT_QUEUE_URL: pointsImportQueue.queueUrl,
+      },
       bundling: {
         target: "node20",
         format: nodejs.OutputFormat.CJS,
+      },
+    });
+
+    const catalogBatchProcessLambda = new nodejs.NodejsFunction(this, "CatalogBatchProcessLambda", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: "handler",
+      entry: path.join(__dirname, "../lambda/catalogBatchProcess.ts"),
+      environment: {
+        POINTS_TABLE_NAME: pointsTable.tableName,
+        POINTS_IMPORT_TOPIC_ARN: pointsImportTopic.topicArn,
+      },
+      bundling: {
+        target: "node20",
+        format: nodejs.OutputFormat.ESM,
       },
     });
 
@@ -129,12 +165,21 @@ export class Module03PointServiceStack extends cdk.Stack {
     pointsTable.grantReadData(getPointByIdLambda);
     pointsTable.grantReadWriteData(createPointLambda);
     pointsTable.grantReadWriteData(processUploadedPhotoLambda);
+    pointsTable.grantReadWriteData(catalogBatchProcessLambda);
 
     importBucket.grantPut(getUploadUrlLambda, "uploads/*");
     importBucket.grantPut(importPointsFileLambda, "uploaded/*");
     importBucket.grantReadWrite(importFileParserLambda);
     importBucket.grantRead(getPointsListLambda, "uploads/*");
     importBucket.grantRead(getPointByIdLambda, "uploads/*");
+    pointsImportQueue.grantSendMessages(importFileParserLambda);
+    pointsImportTopic.grantPublish(catalogBatchProcessLambda);
+
+    catalogBatchProcessLambda.addEventSource(
+      new lambdaEventSources.SqsEventSource(pointsImportQueue, {
+        batchSize: 5,
+      }),
+    );
 
     importBucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,
@@ -191,6 +236,16 @@ export class Module03PointServiceStack extends cdk.Stack {
     new cdk.CfnOutput(this, "ImportBucketName", {
       value: importBucket.bucketName,
       description: "S3 bucket used for uploads and csv imports",
+    });
+
+    new cdk.CfnOutput(this, "PointsImportQueueUrl", {
+      value: pointsImportQueue.queueUrl,
+      description: "SQS queue URL for async points import",
+    });
+
+    new cdk.CfnOutput(this, "PointsImportTopicArn", {
+      value: pointsImportTopic.topicArn,
+      description: "SNS topic ARN for points import notifications",
     });
   }
 }

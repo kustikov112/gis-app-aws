@@ -1,5 +1,5 @@
 {
-  "module": 5,
+  "module": 6,
   "ui": {
     "showMap": true,
     "enableCreatePoint": true,
@@ -18,8 +18,8 @@
     "requireAuthForCreatePoint": false
   },
   "async": {
-    "enableSqsPipeline": false,
-    "enableSnsNotifications": false
+    "enableSqsPipeline": true,
+    "enableSnsNotifications": true
   },
   "ai": {
     "enableRekognitionLabels": false,
