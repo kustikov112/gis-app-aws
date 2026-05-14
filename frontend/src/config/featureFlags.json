@@ -1,5 +1,5 @@
 {
-  "module": 6,
+  "module": 7,
   "ui": {
     "showMap": true,
     "enableCreatePoint": true,
@@ -13,7 +13,7 @@
     "pointsSource": "dynamodb"
   },
   "security": {
-    "enableBasicAuthForImport": false,
+    "enableBasicAuthForImport": true,
     "enableCognito": false,
     "requireAuthForCreatePoint": false
   },
