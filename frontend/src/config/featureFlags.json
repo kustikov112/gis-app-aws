@@ -1,11 +1,11 @@
 {
-  "module": 8,
+  "module": 9,
   "ui": {
     "showMap": true,
     "enableCreatePoint": true,
     "enableUploadPhoto": true,
     "enableCsvImport": true,
-    "enableAuthButtons": false,
+    "enableAuthButtons": true,
     "showAiLabels": false
   },
   "api": {
@@ -14,7 +14,7 @@
   },
   "security": {
     "enableBasicAuthForImport": true,
-    "enableCognito": false,
+    "enableCognito": true,
     "requireAuthForCreatePoint": true
   },
   "async": {
