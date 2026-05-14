@@ -56,6 +56,10 @@ export class Module03PointServiceStack extends cdk.Stack {
       pointsImportTopic.addSubscription(new snsSubscriptions.EmailSubscription(notificationEmail));
     }
 
+    const configuredAuthUser = (this.node.tryGetContext("authUser") as string | undefined) ?? "anton_kustikov";
+    const configuredAuthPassword =
+      (this.node.tryGetContext("authPassword") as string | undefined) ?? "TEST_PASSWORD";
+
     const getPointsListLambda = new nodejs.NodejsFunction(this, "GetPointsListLambda", {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: "handler",
@@ -134,6 +138,19 @@ export class Module03PointServiceStack extends cdk.Stack {
       },
     });
 
+    const basicAuthorizerLambda = new nodejs.NodejsFunction(this, "BasicAuthorizerLambda", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: "handler",
+      entry: path.join(__dirname, "../lambda/basicAuthorizer.ts"),
+      environment: {
+        [configuredAuthUser]: configuredAuthPassword,
+      },
+      bundling: {
+        target: "node20",
+        format: nodejs.OutputFormat.ESM,
+      },
+    });
+
     const importFileParserLambda = new nodejs.NodejsFunction(this, "ImportFileParserLambda", {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: "handler",
@@ -205,6 +222,33 @@ export class Module03PointServiceStack extends cdk.Stack {
       },
     });
 
+    pointsApi.addGatewayResponse("UnauthorizedGatewayResponse", {
+      type: apigateway.ResponseType.UNAUTHORIZED,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'Content-Type,Authorization'",
+        "Access-Control-Allow-Methods": "'GET,POST,OPTIONS'",
+      },
+    });
+
+    pointsApi.addGatewayResponse("AccessDeniedGatewayResponse", {
+      type: apigateway.ResponseType.ACCESS_DENIED,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'Content-Type,Authorization'",
+        "Access-Control-Allow-Methods": "'GET,POST,OPTIONS'",
+      },
+    });
+
+    pointsApi.addGatewayResponse("Default4xxGatewayResponse", {
+      type: apigateway.ResponseType.DEFAULT_4XX,
+      responseHeaders: {
+        "Access-Control-Allow-Origin": "'*'",
+        "Access-Control-Allow-Headers": "'Content-Type,Authorization'",
+        "Access-Control-Allow-Methods": "'GET,POST,OPTIONS'",
+      },
+    });
+
     const pointsResource = pointsApi.root.addResource("points");
     pointsResource.addMethod("GET", new apigateway.LambdaIntegration(getPointsListLambda));
     pointsResource.addMethod("POST", new apigateway.LambdaIntegration(createPointLambda));
@@ -213,7 +257,13 @@ export class Module03PointServiceStack extends cdk.Stack {
     uploadResource.addMethod("GET", new apigateway.LambdaIntegration(getUploadUrlLambda));
 
     const importResource = pointsApi.root.addResource("import");
-    importResource.addMethod("GET", new apigateway.LambdaIntegration(importPointsFileLambda));
+    const importAuthorizer = new apigateway.TokenAuthorizer(this, "ImportBasicTokenAuthorizer", {
+      handler: basicAuthorizerLambda,
+    });
+    importResource.addMethod("GET", new apigateway.LambdaIntegration(importPointsFileLambda), {
+      authorizationType: apigateway.AuthorizationType.CUSTOM,
+      authorizer: importAuthorizer,
+    });
 
     const pointByIdResource = pointsResource.addResource("{pointId}");
     pointByIdResource.addMethod("GET", new apigateway.LambdaIntegration(getPointByIdLambda));
@@ -246,6 +296,11 @@ export class Module03PointServiceStack extends cdk.Stack {
     new cdk.CfnOutput(this, "PointsImportTopicArn", {
       value: pointsImportTopic.topicArn,
       description: "SNS topic ARN for points import notifications",
+    });
+
+    new cdk.CfnOutput(this, "ConfiguredAuthUser", {
+      value: configuredAuthUser,
+      description: "Username configured for basic import authorizer",
     });
   }
 }
