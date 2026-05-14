@@ -1,5 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as nodejs from "aws-cdk-lib/aws-lambda-nodejs";
@@ -12,13 +13,26 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 import { Construct } from "constructs";
 import * as path from "node:path";
 
+type Module03PointServiceStackProps = cdk.StackProps & {
+  cloudFrontCallbackUrl: string;
+};
+
 export class Module03PointServiceStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: Module03PointServiceStackProps) {
     super(scope, id, props);
 
     const pointsTable = new dynamodb.Table(this, "PointsTable", {
       partitionKey: {
         name: "id",
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const usersTable = new dynamodb.Table(this, "UsersTable", {
+      partitionKey: {
+        name: "userId",
         type: dynamodb.AttributeType.STRING,
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -59,6 +73,76 @@ export class Module03PointServiceStack extends cdk.Stack {
     const configuredAuthUser = (this.node.tryGetContext("authUser") as string | undefined) ?? "anton_kustikov";
     const configuredAuthPassword =
       (this.node.tryGetContext("authPassword") as string | undefined) ?? "TEST_PASSWORD";
+    const cognitoDomainPrefix =
+      (this.node.tryGetContext("cognitoDomainPrefix") as string | undefined) ??
+      `mappoints-${this.account}-module8`;
+
+    const postConfirmationLambda = new nodejs.NodejsFunction(this, "PostConfirmationLambda", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: "handler",
+      entry: path.join(__dirname, "../lambda/postConfirmation.ts"),
+      environment: {
+        USERS_TABLE_NAME: usersTable.tableName,
+      },
+      bundling: {
+        target: "node20",
+        format: nodejs.OutputFormat.ESM,
+      },
+    });
+
+    const userPool = new cognito.UserPool(this, "MapPointsUserPool", {
+      selfSignUpEnabled: true,
+      signInAliases: {
+        email: true,
+      },
+      standardAttributes: {
+        email: {
+          required: true,
+          mutable: true,
+        },
+      },
+      autoVerify: {
+        email: true,
+      },
+      passwordPolicy: {
+        minLength: 8,
+        requireUppercase: true,
+        requireDigits: true,
+        requireLowercase: false,
+        requireSymbols: false,
+      },
+      lambdaTriggers: {
+        postConfirmation: postConfirmationLambda,
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const userPoolClient = new cognito.UserPoolClient(this, "MapPointsUserPoolClient", {
+      userPool,
+      generateSecret: false,
+      authFlows: {
+        userPassword: true,
+        adminUserPassword: true,
+      },
+      oAuth: {
+        flows: {
+          authorizationCodeGrant: true,
+        },
+        callbackUrls: [props.cloudFrontCallbackUrl],
+        logoutUrls: [props.cloudFrontCallbackUrl],
+        scopes: [
+          cognito.OAuthScope.EMAIL,
+          cognito.OAuthScope.OPENID,
+          cognito.OAuthScope.PROFILE,
+        ],
+      },
+    });
+
+    const userPoolDomain = userPool.addDomain("MapPointsUserPoolDomain", {
+      cognitoDomain: {
+        domainPrefix: cognitoDomainPrefix,
+      },
+    });
 
     const getPointsListLambda = new nodejs.NodejsFunction(this, "GetPointsListLambda", {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -183,6 +267,7 @@ export class Module03PointServiceStack extends cdk.Stack {
     pointsTable.grantReadWriteData(createPointLambda);
     pointsTable.grantReadWriteData(processUploadedPhotoLambda);
     pointsTable.grantReadWriteData(catalogBatchProcessLambda);
+    usersTable.grantWriteData(postConfirmationLambda);
 
     importBucket.grantPut(getUploadUrlLambda, "uploads/*");
     importBucket.grantPut(importPointsFileLambda, "uploaded/*");
@@ -251,7 +336,13 @@ export class Module03PointServiceStack extends cdk.Stack {
 
     const pointsResource = pointsApi.root.addResource("points");
     pointsResource.addMethod("GET", new apigateway.LambdaIntegration(getPointsListLambda));
-    pointsResource.addMethod("POST", new apigateway.LambdaIntegration(createPointLambda));
+    const pointsCognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(this, "PointsCognitoAuthorizer", {
+      cognitoUserPools: [userPool],
+    });
+    pointsResource.addMethod("POST", new apigateway.LambdaIntegration(createPointLambda), {
+      authorizationType: apigateway.AuthorizationType.COGNITO,
+      authorizer: pointsCognitoAuthorizer,
+    });
 
     const uploadResource = pointsApi.root.addResource("upload");
     uploadResource.addMethod("GET", new apigateway.LambdaIntegration(getUploadUrlLambda));
@@ -301,6 +392,26 @@ export class Module03PointServiceStack extends cdk.Stack {
     new cdk.CfnOutput(this, "ConfiguredAuthUser", {
       value: configuredAuthUser,
       description: "Username configured for basic import authorizer",
+    });
+
+    new cdk.CfnOutput(this, "UsersTableName", {
+      value: usersTable.tableName,
+      description: "DynamoDB users table filled by Cognito post-confirmation trigger",
+    });
+
+    new cdk.CfnOutput(this, "CognitoUserPoolId", {
+      value: userPool.userPoolId,
+      description: "Cognito User Pool ID",
+    });
+
+    new cdk.CfnOutput(this, "CognitoUserPoolClientId", {
+      value: userPoolClient.userPoolClientId,
+      description: "Cognito App Client ID",
+    });
+
+    new cdk.CfnOutput(this, "CognitoDomain", {
+      value: `https://${userPoolDomain.domainName}.auth.${this.region}.amazoncognito.com`,
+      description: "Cognito hosted UI domain",
     });
   }
 }

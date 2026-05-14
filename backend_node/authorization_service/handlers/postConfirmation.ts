@@ -1,8 +1,41 @@
-// TODO Module 8: Cognito Post Confirmation trigger
-// When a user confirms their email, write a record to the `users` DynamoDB table:
-//   { userId: cognitoSub, email, createdAt }
-// Return the event object unchanged (required by Cognito trigger contract)
-export const handler = async (event: unknown): Promise<unknown> => {
-  throw new Error("Not implemented");
+import type { PostConfirmationTriggerEvent } from "aws-lambda";
+import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+
+const dynamoDb = new DynamoDBClient({});
+
+const getUsersTableName = (): string => {
+  const tableName = process.env.USERS_TABLE_NAME;
+  if (!tableName) {
+    throw new Error("USERS_TABLE_NAME is not set");
+  }
+
+  return tableName;
+};
+
+export const handler = async (
+  event: PostConfirmationTriggerEvent,
+): Promise<PostConfirmationTriggerEvent> => {
+  const userId = event.request.userAttributes.sub;
+  const email = event.request.userAttributes.email;
+
+  if (!userId || !email) {
+    console.log("Skipping user persistence due to missing attributes", {
+      userId,
+      email,
+    });
+    return event;
+  }
+
+  await dynamoDb.send(
+    new PutItemCommand({
+      TableName: getUsersTableName(),
+      Item: {
+        userId: { S: userId },
+        email: { S: email },
+        createdAt: { S: new Date().toISOString() },
+      },
+    }),
+  );
+
   return event;
 };
