@@ -1,5 +1,5 @@
 {
-  "module": 7,
+  "module": 8,
   "ui": {
     "showMap": true,
     "enableCreatePoint": true,
@@ -15,7 +15,7 @@
   "security": {
     "enableBasicAuthForImport": true,
     "enableCognito": false,
-    "requireAuthForCreatePoint": false
+    "requireAuthForCreatePoint": true
   },
   "async": {
     "enableSqsPipeline": true,

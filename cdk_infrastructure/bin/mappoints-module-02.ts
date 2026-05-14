@@ -4,5 +4,7 @@ import { Module02HostingStack } from "../lib/module-02-hosting-stack";
 import { Module03PointServiceStack } from "../lib/module-03-point-service-stack";
 
 const app = new cdk.App();
-new Module02HostingStack(app, "MapPointsModule02HostingStack", {});
-new Module03PointServiceStack(app, "MapPointsModule03PointServiceStack", {});
+const hostingStack = new Module02HostingStack(app, "MapPointsModule02HostingStack", {});
+new Module03PointServiceStack(app, "MapPointsModule03PointServiceStack", {
+	cloudFrontCallbackUrl: hostingStack.cloudFrontUrl,
+});
