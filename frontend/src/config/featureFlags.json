@@ -1,12 +1,12 @@
 {
-  "module": 9,
+  "module": 10,
   "ui": {
     "showMap": true,
     "enableCreatePoint": true,
     "enableUploadPhoto": true,
     "enableCsvImport": true,
     "enableAuthButtons": true,
-    "showAiLabels": false
+    "showAiLabels": true
   },
   "api": {
     "enablePointsApi": true,
@@ -22,7 +22,7 @@
     "enableSnsNotifications": true
   },
   "ai": {
-    "enableRekognitionLabels": false,
+    "enableRekognitionLabels": true,
     "enableModeration": false,
     "enableTextDetection": false
   }

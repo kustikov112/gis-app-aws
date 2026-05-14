@@ -39,6 +39,19 @@ export class Module03PointServiceStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    const photoEnrichmentTable = new dynamodb.Table(this, "PhotoEnrichmentTable", {
+      partitionKey: {
+        name: "pointId",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "photoKey",
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const importBucket = new s3.Bucket(this, "ImportBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
@@ -163,6 +176,7 @@ export class Module03PointServiceStack extends cdk.Stack {
       entry: path.join(__dirname, "../lambda/getPointById.ts"),
       environment: {
         POINTS_TABLE_NAME: pointsTable.tableName,
+        PHOTO_ENRICHMENT_TABLE_NAME: photoEnrichmentTable.tableName,
       },
       bundling: {
         target: "node20",
@@ -208,6 +222,21 @@ export class Module03PointServiceStack extends cdk.Stack {
         format: nodejs.OutputFormat.ESM,
       },
     });
+
+    const enrichPhotoLambda = new nodejs.NodejsFunction(this, "EnrichPhotoLambda", {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: "handler",
+      entry: path.join(__dirname, "../lambda/enrichPhoto.ts"),
+      environment: {
+        PHOTO_ENRICHMENT_TABLE_NAME: photoEnrichmentTable.tableName,
+      },
+      bundling: {
+        target: "node20",
+        format: nodejs.OutputFormat.ESM,
+      },
+    });
+
+    processUploadedPhotoLambda.addEnvironment("ENRICH_PHOTO_FUNCTION_NAME", enrichPhotoLambda.functionName);
 
     const importPointsFileLambda = new nodejs.NodejsFunction(this, "ImportPointsFileLambda", {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -267,15 +296,23 @@ export class Module03PointServiceStack extends cdk.Stack {
     pointsTable.grantReadWriteData(createPointLambda);
     pointsTable.grantReadWriteData(processUploadedPhotoLambda);
     pointsTable.grantReadWriteData(catalogBatchProcessLambda);
+    photoEnrichmentTable.grantReadData(getPointByIdLambda);
+    photoEnrichmentTable.grantWriteData(enrichPhotoLambda);
     usersTable.grantWriteData(postConfirmationLambda);
 
     importBucket.grantPut(getUploadUrlLambda, "uploads/*");
     importBucket.grantPut(importPointsFileLambda, "uploaded/*");
     importBucket.grantReadWrite(importFileParserLambda);
+    importBucket.grantRead(enrichPhotoLambda, "uploads/*");
     importBucket.grantRead(getPointsListLambda, "uploads/*");
     importBucket.grantRead(getPointByIdLambda, "uploads/*");
     pointsImportQueue.grantSendMessages(importFileParserLambda);
     pointsImportTopic.grantPublish(catalogBatchProcessLambda);
+    enrichPhotoLambda.grantInvoke(processUploadedPhotoLambda);
+    enrichPhotoLambda.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ["rekognition:DetectLabels"],
+      resources: ["*"],
+    }));
 
     catalogBatchProcessLambda.addEventSource(
       new lambdaEventSources.SqsEventSource(pointsImportQueue, {
@@ -397,6 +434,11 @@ export class Module03PointServiceStack extends cdk.Stack {
     new cdk.CfnOutput(this, "UsersTableName", {
       value: usersTable.tableName,
       description: "DynamoDB users table filled by Cognito post-confirmation trigger",
+    });
+
+    new cdk.CfnOutput(this, "PhotoEnrichmentTableArn", {
+      value: photoEnrichmentTable.tableArn,
+      description: "DynamoDB table ARN storing Rekognition enrichment metadata",
     });
 
     new cdk.CfnOutput(this, "CognitoUserPoolId", {

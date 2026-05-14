@@ -1,7 +1,9 @@
 import type { S3Event } from "aws-lambda";
 import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 
 const dynamoDb = new DynamoDBClient({});
+const lambdaClient = new LambdaClient({});
 
 const getTableName = (): string => {
   const tableName = process.env.POINTS_TABLE_NAME;
@@ -16,9 +18,12 @@ const decodeS3Key = (key: string): string => decodeURIComponent(key.replace(/\+/
 
 const encodeS3Key = (key: string): string => key.split("/").map(encodeURIComponent).join("/");
 
+const getEnrichPhotoFunctionName = (): string | undefined => process.env.ENRICH_PHOTO_FUNCTION_NAME;
+
 export const handler = async (event: S3Event): Promise<void> => {
   const tableName = getTableName();
   const region = process.env.AWS_REGION ?? "eu-central-1";
+  const enrichPhotoFunctionName = getEnrichPhotoFunctionName();
 
   for (const record of event.Records) {
     const bucketName = record.s3.bucket.name;
@@ -45,6 +50,16 @@ export const handler = async (event: S3Event): Promise<void> => {
         },
       }),
     );
+
+    if (enrichPhotoFunctionName) {
+      await lambdaClient.send(
+        new InvokeCommand({
+          FunctionName: enrichPhotoFunctionName,
+          InvocationType: "Event",
+          Payload: Buffer.from(JSON.stringify({ Records: [record] })),
+        }),
+      );
+    }
 
     console.log("Updated point photo", {
       bucketName,

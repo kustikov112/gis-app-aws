@@ -1,3 +1,5 @@
+import type { Point } from "../types";
+
 export type ApiConfig = {
   pointsBaseUrl?: string;
   importBaseUrl?: string;
@@ -12,7 +14,19 @@ export const createApiClient = (config: ApiConfig) => ({
     if (!response.ok) {
       throw new Error(`Failed to load points: ${response.status}`);
     }
-    return response.json();
+    return response.json() as Promise<Point[]>;
+  },
+  getPointById: async (pointId: string) => {
+    if (!config.pointsBaseUrl) {
+      throw new Error("Points API is disabled");
+    }
+
+    const response = await fetch(`${config.pointsBaseUrl}/points/${pointId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to load point ${pointId}: ${response.status}`);
+    }
+
+    return response.json() as Promise<Point>;
   },
   createPoint: async (payload: unknown, idToken?: string) => {
     if (!config.pointsBaseUrl) {

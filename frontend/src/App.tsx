@@ -79,7 +79,26 @@ export const App: React.FC = () => {
     }
     try {
       const items = await api.getPoints();
-      setPoints(items);
+      if (!flags.ai.enableRekognitionLabels || !flags.ui.showAiLabels) {
+        setPoints(items);
+        return;
+      }
+
+      const pointsWithDetails = await Promise.all(
+        items.map(async (point) => {
+          if (!point.photoUrl) {
+            return point;
+          }
+
+          try {
+            return await api.getPointById(point.id);
+          } catch {
+            return point;
+          }
+        }),
+      );
+
+      setPoints(pointsWithDetails);
     } catch {
       setPoints(flags.api.pointsSource === "mock" ? mockPoints : []);
     }
